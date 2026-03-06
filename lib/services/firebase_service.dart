@@ -27,7 +27,7 @@ class FirebaseService {
     return List.generate(6, (_) => chars[random.nextInt(chars.length)]).join();
   }
 
-  Future<String> createRoom(int level, int seed) async {
+  Future<String> createRoom(int level, int seed, {int maxPlayers = 10}) async {
     final uid = currentUid!;
     String roomCode;
 
@@ -41,13 +41,12 @@ class FirebaseService {
     final now = DateTime.now();
     await _firestore.collection('rooms').doc(roomCode).set({
       'hostId': uid,
-      'guestId': null,
       'status': 'waiting',
       'seed': seed,
       'level': level,
+      'maxPlayers': maxPlayers,
       'createdAt': Timestamp.fromDate(now),
       'countdownStartedAt': null,
-      'winnerId': null,
       'players': {
         uid: PlayerState(uid: uid, lastHeartbeat: now).toMap(),
       },
@@ -66,26 +65,23 @@ class FirebaseService {
 
       final data = snapshot.data()!;
       final status = data['status'] as String;
-      final guestId = data['guestId'] as String?;
+      final maxPlayers = data['maxPlayers'] as int? ?? 10;
+      final playersMap =
+          Map<String, dynamic>.from(data['players'] as Map? ?? {});
 
       // Room must be waiting and not full
-      if (status != 'waiting' || guestId != null) return null;
+      if (status != 'waiting' || playersMap.length >= maxPlayers) return null;
+
+      // Already in room
+      if (playersMap.containsKey(uid)) return null;
 
       final now = DateTime.now();
       transaction.update(docRef, {
-        'guestId': uid,
-        'status': 'countdown',
-        'countdownStartedAt': FieldValue.serverTimestamp(),
         'players.$uid': PlayerState(uid: uid, lastHeartbeat: now).toMap(),
       });
 
       // Return updated room
       final updatedData = Map<String, dynamic>.from(data);
-      updatedData['guestId'] = uid;
-      updatedData['status'] = 'countdown';
-      updatedData['countdownStartedAt'] = Timestamp.fromDate(now);
-      final playersMap =
-          Map<String, dynamic>.from(updatedData['players'] as Map);
       playersMap[uid] = PlayerState(uid: uid, lastHeartbeat: now).toMap();
       updatedData['players'] = playersMap;
 
@@ -121,10 +117,16 @@ class FirebaseService {
     }
   }
 
-  Future<void> setWinner(String roomCode, String winnerId) async {
+  Future<void> markFinished(String roomCode) async {
     await _firestore.collection('rooms').doc(roomCode).update({
-      'winnerId': winnerId,
       'status': 'finished',
+    });
+  }
+
+  Future<void> startCountdown(String roomCode) async {
+    await _firestore.collection('rooms').doc(roomCode).update({
+      'status': 'countdown',
+      'countdownStartedAt': FieldValue.serverTimestamp(),
     });
   }
 

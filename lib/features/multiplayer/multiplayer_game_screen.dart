@@ -78,20 +78,19 @@ class _MultiplayerGameScreenState extends ConsumerState<MultiplayerGameScreen>
     });
   }
 
-
-  Future<void> _showForfeitDialog() async {
-    final shouldForfeit = await showDialog<bool>(
+  Future<void> _showExitDialog() async {
+    final shouldExit = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A2E),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text(
-          'Forfeit?',
+          'Leave Game?',
           textAlign: TextAlign.center,
           style: TextStyle(color: Colors.white, fontSize: 24),
         ),
         content: const Text(
-          'Your opponent will win.',
+          'You will be marked as disconnected.',
           textAlign: TextAlign.center,
           style: TextStyle(color: Colors.white70),
         ),
@@ -99,19 +98,19 @@ class _MultiplayerGameScreenState extends ConsumerState<MultiplayerGameScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+            child: const Text('Stay'),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
-            child: const Text('Forfeit'),
+            child: const Text('Leave'),
           ),
         ],
       ),
     );
 
-    if (shouldForfeit == true && mounted) {
-      await ref.read(multiplayerProvider.notifier).forfeit();
+    if (shouldExit == true && mounted) {
+      await ref.read(multiplayerProvider.notifier).exitGame();
     }
   }
 
@@ -119,7 +118,7 @@ class _MultiplayerGameScreenState extends ConsumerState<MultiplayerGameScreen>
   Widget build(BuildContext context) {
     final game = ref.watch(gameProvider);
     final mp = ref.watch(multiplayerProvider);
-    final opponentAsync = ref.watch(opponentStreamProvider);
+    final playersAsync = ref.watch(playersStreamProvider);
     final gridSize = game.grid.gridSize;
 
     // Listen for game win → sync immediately
@@ -152,7 +151,7 @@ class _MultiplayerGameScreenState extends ConsumerState<MultiplayerGameScreen>
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
-        await _showForfeitDialog();
+        await _showExitDialog();
       },
       child: Scaffold(
         body: SafeArea(
@@ -160,7 +159,7 @@ class _MultiplayerGameScreenState extends ConsumerState<MultiplayerGameScreen>
             children: [
               Column(
                 children: [
-                  // Top bar with forfeit
+                  // Top bar with leave button
                   Padding(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -168,8 +167,8 @@ class _MultiplayerGameScreenState extends ConsumerState<MultiplayerGameScreen>
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         IconButton(
-                          onPressed: _showForfeitDialog,
-                          icon: const Icon(Icons.flag_rounded,
+                          onPressed: _showExitDialog,
+                          icon: const Icon(Icons.exit_to_app_rounded,
                               color: Colors.redAccent, size: 28),
                         ),
                         Text(
@@ -185,12 +184,20 @@ class _MultiplayerGameScreenState extends ConsumerState<MultiplayerGameScreen>
                     ),
                   ),
 
-                  // Opponent status bar
-                  opponentAsync.when(
-                    data: (opponent) =>
-                        _OpponentStatusBar(opponent: opponent),
-                    loading: () => const _OpponentStatusBar(opponent: null),
-                    error: (_, __) => const _OpponentStatusBar(opponent: null),
+                  // Live leaderboard
+                  playersAsync.when(
+                    data: (players) => _LiveLeaderboard(
+                      players: players,
+                      myUid: mp.myUid ?? '',
+                    ),
+                    loading: () => const _LiveLeaderboard(
+                      players: [],
+                      myUid: '',
+                    ),
+                    error: (_, __) => const _LiveLeaderboard(
+                      players: [],
+                      myUid: '',
+                    ),
                   ),
 
                   // HUD
@@ -210,15 +217,13 @@ class _MultiplayerGameScreenState extends ConsumerState<MultiplayerGameScreen>
                 ],
               ),
 
-              // Win/Loss overlay
+              // Results overlay
               if (_showResult)
                 MultiplayerWinDialog(
-                  isWinner: mp.room?.winnerId == mp.myUid,
+                  myUid: mp.myUid ?? '',
+                  room: mp.room,
                   myMoves: game.moveCount,
                   myTime: game.elapsed,
-                  opponent: mp.room?.getOpponent(mp.myUid ?? ''),
-                  opponentDisconnected:
-                      mp.room?.getOpponent(mp.myUid ?? '')?.connected == false,
                   onHome: () {
                     ref.read(multiplayerProvider.notifier).reset();
                     Navigator.of(context).popUntil((route) => route.isFirst);
@@ -232,10 +237,14 @@ class _MultiplayerGameScreenState extends ConsumerState<MultiplayerGameScreen>
   }
 }
 
-class _OpponentStatusBar extends StatelessWidget {
-  final PlayerState? opponent;
+class _LiveLeaderboard extends StatelessWidget {
+  final List<PlayerState> players;
+  final String myUid;
 
-  const _OpponentStatusBar({required this.opponent});
+  const _LiveLeaderboard({
+    required this.players,
+    required this.myUid,
+  });
 
   String _formatMs(int ms) {
     final d = Duration(milliseconds: ms);
@@ -246,98 +255,150 @@ class _OpponentStatusBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (players.isEmpty) {
+      return const SizedBox(height: 40);
+    }
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      constraints: const BoxConstraints(maxHeight: 150),
       decoration: BoxDecoration(
         color: Colors.white.withAlpha(8),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.white.withAlpha(20)),
       ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.person_rounded,
-            size: 18,
-            color: Colors.white.withAlpha(100),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            'Opponent',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.white.withAlpha(150),
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const Spacer(),
-          if (opponent == null)
-            Text(
-              'Connecting...',
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.white.withAlpha(60),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: ListView.builder(
+          padding: EdgeInsets.zero,
+          shrinkWrap: true,
+          itemCount: players.length,
+          itemBuilder: (_, i) {
+            final player = players[i];
+            final isMe = player.uid == myUid;
+            final rank = i + 1;
+
+            return Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: isMe
+                    ? const Color(0xFF4ECDC4).withAlpha(15)
+                    : Colors.transparent,
+                border: i < players.length - 1
+                    ? Border(
+                        bottom:
+                            BorderSide(color: Colors.white.withAlpha(10)))
+                    : null,
               ),
-            )
-          else ...[
-            if (opponent!.solved)
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF4ECDC4).withAlpha(40),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Text(
-                  'SOLVED',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF4ECDC4),
+              child: Row(
+                children: [
+                  // Rank
+                  SizedBox(
+                    width: 24,
+                    child: Text(
+                      '$rank',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: rank == 1
+                            ? Colors.amber
+                            : rank == 2
+                                ? Colors.grey.shade300
+                                : rank == 3
+                                    ? Colors.orange.shade300
+                                    : Colors.white.withAlpha(100),
+                      ),
+                    ),
                   ),
-                ),
-              )
-            else if (!opponent!.connected)
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.redAccent.withAlpha(40),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Text(
-                  'OFFLINE',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.redAccent,
+                  // Player label
+                  Icon(
+                    Icons.person_rounded,
+                    size: 14,
+                    color: isMe
+                        ? const Color(0xFF4ECDC4)
+                        : Colors.white.withAlpha(80),
                   ),
-                ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      isMe ? 'You' : 'Player',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight:
+                            isMe ? FontWeight.w600 : FontWeight.normal,
+                        color: isMe
+                            ? const Color(0xFF4ECDC4)
+                            : Colors.white.withAlpha(150),
+                      ),
+                    ),
+                  ),
+                  // Status badges
+                  if (player.solved)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4ECDC4).withAlpha(40),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'DONE',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF4ECDC4),
+                        ),
+                      ),
+                    )
+                  else if (!player.connected)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent.withAlpha(40),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'LEFT',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.redAccent,
+                        ),
+                      ),
+                    ),
+                  const SizedBox(width: 8),
+                  // Moves
+                  Icon(Icons.swipe_rounded,
+                      size: 12, color: Colors.white.withAlpha(60)),
+                  const SizedBox(width: 3),
+                  SizedBox(
+                    width: 28,
+                    child: Text(
+                      '${player.moveCount}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.white.withAlpha(140),
+                      ),
+                    ),
+                  ),
+                  // Time
+                  Icon(Icons.timer_rounded,
+                      size: 12, color: Colors.white.withAlpha(60)),
+                  const SizedBox(width: 3),
+                  Text(
+                    _formatMs(player.elapsedMs),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.white.withAlpha(140),
+                    ),
+                  ),
+                ],
               ),
-            const SizedBox(width: 12),
-            Icon(Icons.swipe_rounded,
-                size: 14, color: Colors.white.withAlpha(80)),
-            const SizedBox(width: 4),
-            Text(
-              '${opponent!.moveCount}',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.white.withAlpha(150),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Icon(Icons.timer_rounded,
-                size: 14, color: Colors.white.withAlpha(80)),
-            const SizedBox(width: 4),
-            Text(
-              _formatMs(opponent!.elapsedMs),
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.white.withAlpha(150),
-              ),
-            ),
-          ],
-        ],
+            );
+          },
+        ),
       ),
     );
   }

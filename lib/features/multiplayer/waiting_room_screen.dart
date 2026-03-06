@@ -101,13 +101,16 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
       }
     });
 
-    // If already in countdown when screen loads (guest joining)
+    // If already in countdown when screen loads
     if (mp.phase == MultiplayerPhase.countdown && _countdownTimer == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _startCountdown());
     }
 
     final isCountdown = mp.phase == MultiplayerPhase.countdown;
     final roomCode = mp.roomCode ?? '------';
+    final isHost = mp.room?.hostId == mp.myUid;
+    final playerCount = mp.room?.playerCount ?? 1;
+    final maxPlayers = mp.room?.maxPlayers ?? 10;
 
     return PopScope(
       canPop: false,
@@ -145,16 +148,6 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                     ),
                   ),
                 ] else ...[
-                  // Waiting display
-                  Text(
-                    'Waiting for opponent...',
-                    style: TextStyle(
-                      fontSize: 20,
-                      color: Colors.white.withAlpha(180),
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-
                   // Room code
                   Text(
                     'ROOM CODE',
@@ -206,7 +199,7 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
 
                   // Share button
                   TextButton.icon(
@@ -222,17 +215,184 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 32),
 
-                  // Loading indicator
-                  const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Color(0xFF4ECDC4),
+                  // Player count badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF4ECDC4).withAlpha(20),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: const Color(0xFF4ECDC4).withAlpha(60),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.people_rounded,
+                            color: Color(0xFF4ECDC4), size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          '$playerCount / $maxPlayers players',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF4ECDC4),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+
+                  const SizedBox(height: 20),
+
+                  // Player list
+                  if (mp.room != null)
+                    Container(
+                      constraints: const BoxConstraints(maxHeight: 200),
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: mp.room!.players.length,
+                        itemBuilder: (_, i) {
+                          final player =
+                              mp.room!.players.values.toList()[i];
+                          final isMe = player.uid == mp.myUid;
+                          final isPlayerHost =
+                              player.uid == mp.room!.hostId;
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: isMe
+                                    ? const Color(0xFF4ECDC4).withAlpha(15)
+                                    : Colors.white.withAlpha(8),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: isMe
+                                      ? const Color(0xFF4ECDC4).withAlpha(60)
+                                      : Colors.white.withAlpha(15),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.person_rounded,
+                                    size: 18,
+                                    color: isMe
+                                        ? const Color(0xFF4ECDC4)
+                                        : Colors.white.withAlpha(120),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    isMe ? 'You' : 'Player ${i + 1}',
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: isMe
+                                          ? FontWeight.w600
+                                          : FontWeight.normal,
+                                      color: isMe
+                                          ? const Color(0xFF4ECDC4)
+                                          : Colors.white.withAlpha(180),
+                                    ),
+                                  ),
+                                  if (isPlayerHost) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.amber.withAlpha(30),
+                                        borderRadius:
+                                            BorderRadius.circular(6),
+                                      ),
+                                      child: const Text(
+                                        'HOST',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.amber,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                  const Spacer(),
+                                  Icon(
+                                    Icons.check_circle_rounded,
+                                    size: 18,
+                                    color: const Color(0xFF4ECDC4)
+                                        .withAlpha(150),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+
+                  const SizedBox(height: 24),
+
+                  // Host: Start Game button
+                  if (isHost)
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton.icon(
+                        onPressed: playerCount >= 2
+                            ? () {
+                                ref
+                                    .read(multiplayerProvider.notifier)
+                                    .startCountdown();
+                              }
+                            : null,
+                        icon: const Icon(Icons.play_arrow_rounded),
+                        label: Text(
+                          playerCount >= 2
+                              ? 'Start Game'
+                              : 'Waiting for players...',
+                          style: const TextStyle(fontSize: 18),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF4ECDC4),
+                          foregroundColor: Colors.black,
+                          disabledBackgroundColor:
+                              Colors.white.withAlpha(15),
+                          disabledForegroundColor:
+                              Colors.white.withAlpha(80),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                    )
+                  else ...[
+                    // Non-host: waiting message
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white.withAlpha(100),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Waiting for host to start...',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.white.withAlpha(120),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
 
                 const Spacer(flex: 2),
@@ -251,7 +411,7 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
                         ),
                       ),
                       child: const Text(
-                        'Cancel',
+                        'Leave',
                         style: TextStyle(fontSize: 18),
                       ),
                     ),

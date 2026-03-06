@@ -11,13 +11,15 @@ final multiplayerProvider =
   return MultiplayerNotifier(ref);
 });
 
-final opponentStreamProvider = StreamProvider.autoDispose<PlayerState?>((ref) {
+/// Stream of all players in the room (ranked), used by game screen leaderboard
+final playersStreamProvider =
+    StreamProvider.autoDispose<List<PlayerState>>((ref) {
   final mp = ref.watch(multiplayerProvider);
-  if (mp.roomCode == null || mp.myUid == null) return Stream.value(null);
+  if (mp.roomCode == null) return Stream.value([]);
   final firebase = ref.read(firebaseServiceProvider);
   return firebase.watchRoom(mp.roomCode!).map((room) {
-    if (room == null) return null;
-    return room.getOpponent(mp.myUid!);
+    if (room == null) return [];
+    return room.getRankedPlayers();
   });
 });
 
@@ -56,7 +58,7 @@ class MultiplayerNotifier extends StateNotifier<MultiplayerState> {
       final room = await firebase.joinRoom(roomCode.toUpperCase());
 
       if (room == null) {
-        state = state.copyWith(errorMessage: 'Room not found or already full');
+        state = state.copyWith(errorMessage: 'Room not found or full');
         return;
       }
 
@@ -64,7 +66,7 @@ class MultiplayerNotifier extends StateNotifier<MultiplayerState> {
         roomCode: roomCode.toUpperCase(),
         myUid: uid,
         room: room,
-        phase: MultiplayerPhase.countdown,
+        phase: MultiplayerPhase.waiting,
         errorMessage: null,
       );
 
@@ -98,6 +100,17 @@ class MultiplayerNotifier extends StateNotifier<MultiplayerState> {
     });
   }
 
+  /// Host starts the countdown (requires >= 2 players)
+  Future<void> startCountdown() async {
+    if (state.roomCode == null) return;
+    final room = state.room;
+    if (room == null || room.hostId != state.myUid) return;
+    if (room.playerCount < 2) return;
+
+    final firebase = ref.read(firebaseServiceProvider);
+    await firebase.startCountdown(state.roomCode!);
+  }
+
   Future<void> startGame() async {
     if (state.roomCode == null) return;
     final firebase = ref.read(firebaseServiceProvider);
@@ -114,19 +127,23 @@ class MultiplayerNotifier extends StateNotifier<MultiplayerState> {
       elapsedMs: elapsedMs,
       solved: solved,
     );
-    if (solved && state.room?.winnerId == null) {
-      firebase.setWinner(state.roomCode!, state.myUid!);
+
+    // Check if all connected players have solved → mark room finished
+    if (solved && state.room != null) {
+      final allSolved = state.room!.players.values
+          .where((p) => p.connected)
+          .every((p) => p.solved || p.uid == state.myUid);
+      if (allSolved) {
+        firebase.markFinished(state.roomCode!);
+      }
     }
   }
 
-  Future<void> forfeit() async {
+  /// Player exits mid-game (just mark disconnected, no winner assignment)
+  Future<void> exitGame() async {
     if (state.roomCode == null || state.myUid == null) return;
     final firebase = ref.read(firebaseServiceProvider);
-    // Set opponent as winner
-    final opponent = state.room?.getOpponent(state.myUid!);
-    if (opponent != null) {
-      await firebase.setWinner(state.roomCode!, opponent.uid);
-    }
+    await firebase.setDisconnected(state.roomCode!, state.myUid!);
   }
 
   void _startHeartbeat(String roomCode, String uid) {

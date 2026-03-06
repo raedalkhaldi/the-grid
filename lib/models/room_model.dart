@@ -68,59 +68,85 @@ class PlayerState {
 class RoomModel {
   final String roomCode;
   final String hostId;
-  final String? guestId;
   final RoomStatus status;
   final int seed;
   final int level;
+  final int maxPlayers;
   final DateTime createdAt;
   final DateTime? countdownStartedAt;
-  final String? winnerId;
   final Map<String, PlayerState> players;
 
   const RoomModel({
     required this.roomCode,
     required this.hostId,
-    this.guestId,
     required this.status,
     required this.seed,
     required this.level,
+    this.maxPlayers = 10,
     required this.createdAt,
     this.countdownStartedAt,
-    this.winnerId,
     this.players = const {},
   });
+
+  int get playerCount => players.length;
+
+  /// Returns all players sorted by rank:
+  /// 1. Solved players first (sorted by solvedAt ascending)
+  /// 2. Unsolved players after (sorted by moves descending as a proxy for progress)
+  List<PlayerState> getRankedPlayers() {
+    final solved = players.values.where((p) => p.solved).toList()
+      ..sort((a, b) {
+        // Primary: earliest solvedAt wins
+        final aTime = a.solvedAt ?? DateTime(9999);
+        final bTime = b.solvedAt ?? DateTime(9999);
+        final cmp = aTime.compareTo(bTime);
+        if (cmp != 0) return cmp;
+        // Tiebreak: fewer moves wins
+        return a.moveCount.compareTo(b.moveCount);
+      });
+
+    final unsolved = players.values.where((p) => !p.solved).toList()
+      ..sort((a, b) {
+        // Connected players rank above disconnected
+        if (a.connected != b.connected) return a.connected ? -1 : 1;
+        // More moves = more progress
+        return b.moveCount.compareTo(a.moveCount);
+      });
+
+    return [...solved, ...unsolved];
+  }
+
+  /// Returns 1-based rank for the given player uid
+  int getMyRank(String uid) {
+    final ranked = getRankedPlayers();
+    for (int i = 0; i < ranked.length; i++) {
+      if (ranked[i].uid == uid) return i + 1;
+    }
+    return ranked.length;
+  }
 
   RoomModel copyWith({
     String? roomCode,
     String? hostId,
-    String? guestId,
     RoomStatus? status,
     int? seed,
     int? level,
+    int? maxPlayers,
     DateTime? createdAt,
     DateTime? countdownStartedAt,
-    String? winnerId,
     Map<String, PlayerState>? players,
   }) {
     return RoomModel(
       roomCode: roomCode ?? this.roomCode,
       hostId: hostId ?? this.hostId,
-      guestId: guestId ?? this.guestId,
       status: status ?? this.status,
       seed: seed ?? this.seed,
       level: level ?? this.level,
+      maxPlayers: maxPlayers ?? this.maxPlayers,
       createdAt: createdAt ?? this.createdAt,
       countdownStartedAt: countdownStartedAt ?? this.countdownStartedAt,
-      winnerId: winnerId ?? this.winnerId,
       players: players ?? this.players,
     );
-  }
-
-  PlayerState? getOpponent(String myUid) {
-    for (final entry in players.entries) {
-      if (entry.key != myUid) return entry.value;
-    }
-    return null;
   }
 
   factory RoomModel.fromFirestore(String roomCode, Map<String, dynamic> data) {
@@ -134,17 +160,16 @@ class RoomModel {
     return RoomModel(
       roomCode: roomCode,
       hostId: data['hostId'] as String,
-      guestId: data['guestId'] as String?,
       status: RoomStatus.values.firstWhere(
         (e) => e.name == data['status'],
         orElse: () => RoomStatus.waiting,
       ),
       seed: data['seed'] as int,
       level: data['level'] as int,
+      maxPlayers: data['maxPlayers'] as int? ?? 10,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       countdownStartedAt:
           (data['countdownStartedAt'] as Timestamp?)?.toDate(),
-      winnerId: data['winnerId'] as String?,
       players: playersMap,
     );
   }
