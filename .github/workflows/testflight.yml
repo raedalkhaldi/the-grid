@@ -77,10 +77,14 @@ jobs:
           mkdir -p ~/.private_keys
           echo -n "$APP_STORE_CONNECT_API_KEY_BASE64" | base64 --decode -o ~/.private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
 
+          # Find the IPA file
+          IPA_PATH=$(find build/ios/ipa -name "*.ipa" -type f | head -1)
+          echo "Uploading: $IPA_PATH"
+
           # Upload to TestFlight
           xcrun altool --upload-app \
             --type ios \
-            -f build/ios/ipa/*.ipa \
+            -f "$IPA_PATH" \
             --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
             --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
 
