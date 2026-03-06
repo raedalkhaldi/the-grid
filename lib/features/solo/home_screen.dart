@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:chromashift/core/constants.dart';
 import 'package:chromashift/features/game/game_provider.dart';
+import 'package:chromashift/features/multiplayer/lobby_screen.dart';
 import 'package:chromashift/features/settings/settings_screen.dart';
 import 'package:chromashift/features/solo/game_screen.dart';
 
@@ -54,6 +55,33 @@ class HomeScreen extends ConsumerWidget {
                         ? 'Play'
                         : 'Continue (Level $currentLevel)',
                     style: const TextStyle(fontSize: 20),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Multiplayer
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const LobbyScreen(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.people_rounded),
+                  label: const Text(
+                    'Multiplayer',
+                    style: TextStyle(fontSize: 20),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4ECDC4),
+                    foregroundColor: Colors.black,
                   ),
                 ),
               ),

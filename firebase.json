@@ -1,0 +1,1 @@
+{"flutter":{"platforms":{"ios":{"default":{"projectId":"raedalkhaldi","appId":"1:532189300898:ios:895217c7038eb39480affb","uploadDebugSymbols":false,"fileOutput":"ios/Runner/GoogleService-Info.plist"}},"dart":{"lib/firebase_options.dart":{"projectId":"raedalkhaldi","configurations":{"ios":"1:532189300898:ios:895217c7038eb39480affb"}}}}},"firestore":{"rules":"firestore.rules"}}

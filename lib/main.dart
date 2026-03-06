@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:chromashift/firebase_options.dart';
 import 'package:chromashift/core/theme.dart';
 import 'package:chromashift/features/game/game_provider.dart';
 import 'package:chromashift/features/settings/settings_provider.dart';
@@ -9,6 +11,11 @@ import 'package:chromashift/features/solo/home_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Init Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
   // Lock to portrait
   await SystemChrome.setPreferredOrientations([

@@ -19,9 +19,9 @@ class AppConstants {
   ];
 
   // Animation
-  static const Duration fastAnimation = Duration(milliseconds: 100);
-  static const Duration mediumAnimation = Duration(milliseconds: 200);
-  static const Duration slowAnimation = Duration(milliseconds: 350);
+  static const Duration fastAnimation = Duration(milliseconds: 50);
+  static const Duration mediumAnimation = Duration(milliseconds: 120);
+  static const Duration slowAnimation = Duration(milliseconds: 200);
 
   // Swipe
   static const double minSwipeDistance = 20.0;
@@ -37,3 +37,8 @@ enum SwipeDirection { left, right, up, down }
 enum AnimationSpeedSetting { slow, medium, fast }
 
 enum GameStatus { playing, paused, won }
+
+// Multiplayer
+enum RoomStatus { waiting, countdown, playing, finished }
+
+enum MultiplayerPhase { lobby, waiting, countdown, playing, finished }
