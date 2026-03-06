@@ -4,10 +4,10 @@
 <dict>
     <key>method</key>
     <string>app-store-connect</string>
-    <key>destination</key>
-    <string>upload</string>
     <key>signingStyle</key>
     <string>manual</string>
+    <key>signingCertificate</key>
+    <string>Apple Distribution</string>
     <key>teamID</key>
     <string>U85YJ96XU8</string>
     <key>provisioningProfiles</key>
