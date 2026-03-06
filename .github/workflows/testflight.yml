@@ -59,15 +59,6 @@ jobs:
           cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/$PP_UUID.mobileprovision
           echo "PP_UUID=$PP_UUID" >> $GITHUB_ENV
 
-      - name: Configure Xcode project for manual signing
-        run: |
-          # Update project to use manual code signing
-          sed -i '' 's/CODE_SIGN_STYLE = Automatic/CODE_SIGN_STYLE = Manual/g' ios/Runner.xcodeproj/project.pbxproj
-
-          # Add provisioning profile and code sign identity for Runner target
-          # Replace iPhone Developer with iPhone Distribution for release builds
-          sed -i '' 's/"CODE_SIGN_IDENTITY\[sdk=iphoneos\*\]" = "iPhone Developer"/"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution"/g' ios/Runner.xcodeproj/project.pbxproj
-
       - name: Build IPA
         run: |
           flutter build ipa --release \
