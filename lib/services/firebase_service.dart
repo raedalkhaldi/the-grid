@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:chromashift/core/constants.dart';
 import 'package:chromashift/models/room_model.dart';
 
 final firebaseServiceProvider = Provider<FirebaseService>((ref) {
@@ -27,7 +28,14 @@ class FirebaseService {
     return List.generate(6, (_) => chars[random.nextInt(chars.length)]).join();
   }
 
-  Future<String> createRoom(int level, int seed, {int maxPlayers = 10}) async {
+  Future<String> createRoom(
+    int level,
+    int seed, {
+    int maxPlayers = 10,
+    GameMode gameMode = GameMode.colorPuzzle,
+    String? imageData,
+    int gridSize = 3,
+  }) async {
     final uid = currentUid!;
     String roomCode;
 
@@ -39,18 +47,26 @@ class FirebaseService {
     }
 
     final now = DateTime.now();
-    await _firestore.collection('rooms').doc(roomCode).set({
+    final roomData = <String, dynamic>{
       'hostId': uid,
       'status': 'waiting',
       'seed': seed,
       'level': level,
       'maxPlayers': maxPlayers,
+      'gameMode': gameMode.name,
+      'gridSize': gridSize,
       'createdAt': Timestamp.fromDate(now),
       'countdownStartedAt': null,
       'players': {
         uid: PlayerState(uid: uid, lastHeartbeat: now).toMap(),
       },
-    });
+    };
+
+    if (imageData != null) {
+      roomData['imageData'] = imageData;
+    }
+
+    await _firestore.collection('rooms').doc(roomCode).set(roomData);
 
     return roomCode;
   }

@@ -30,12 +30,23 @@ class MultiplayerNotifier extends StateNotifier<MultiplayerState> {
 
   MultiplayerNotifier(this.ref) : super(const MultiplayerState());
 
-  Future<void> createRoom(int level) async {
+  Future<void> createRoom(
+    int level, {
+    GameMode gameMode = GameMode.colorPuzzle,
+    String? imageData,
+    int gridSize = 3,
+  }) async {
     try {
       final firebase = ref.read(firebaseServiceProvider);
       final uid = await firebase.signInAnonymously();
       final seed = Random().nextInt(999999);
-      final roomCode = await firebase.createRoom(level, seed);
+      final roomCode = await firebase.createRoom(
+        level,
+        seed,
+        gameMode: gameMode,
+        imageData: imageData,
+        gridSize: gridSize,
+      );
 
       state = state.copyWith(
         roomCode: roomCode,

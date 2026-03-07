@@ -72,6 +72,9 @@ class RoomModel {
   final int seed;
   final int level;
   final int maxPlayers;
+  final GameMode gameMode;
+  final String? imageData; // base64 compressed image for image puzzle
+  final int gridSize; // grid size for image puzzle (3, 4, 5)
   final DateTime createdAt;
   final DateTime? countdownStartedAt;
   final Map<String, PlayerState> players;
@@ -83,6 +86,9 @@ class RoomModel {
     required this.seed,
     required this.level,
     this.maxPlayers = 10,
+    this.gameMode = GameMode.colorPuzzle,
+    this.imageData,
+    this.gridSize = 3,
     required this.createdAt,
     this.countdownStartedAt,
     this.players = const {},
@@ -132,6 +138,9 @@ class RoomModel {
     int? seed,
     int? level,
     int? maxPlayers,
+    GameMode? gameMode,
+    String? imageData,
+    int? gridSize,
     DateTime? createdAt,
     DateTime? countdownStartedAt,
     Map<String, PlayerState>? players,
@@ -143,6 +152,9 @@ class RoomModel {
       seed: seed ?? this.seed,
       level: level ?? this.level,
       maxPlayers: maxPlayers ?? this.maxPlayers,
+      gameMode: gameMode ?? this.gameMode,
+      imageData: imageData ?? this.imageData,
+      gridSize: gridSize ?? this.gridSize,
       createdAt: createdAt ?? this.createdAt,
       countdownStartedAt: countdownStartedAt ?? this.countdownStartedAt,
       players: players ?? this.players,
@@ -165,8 +177,14 @@ class RoomModel {
         orElse: () => RoomStatus.waiting,
       ),
       seed: data['seed'] as int,
-      level: data['level'] as int,
+      level: data['level'] as int? ?? 1,
       maxPlayers: data['maxPlayers'] as int? ?? 10,
+      gameMode: GameMode.values.firstWhere(
+        (e) => e.name == data['gameMode'],
+        orElse: () => GameMode.colorPuzzle,
+      ),
+      imageData: data['imageData'] as String?,
+      gridSize: data['gridSize'] as int? ?? 3,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       countdownStartedAt:
           (data['countdownStartedAt'] as Timestamp?)?.toDate(),

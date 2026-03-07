@@ -38,6 +38,9 @@ enum AnimationSpeedSetting { slow, medium, fast }
 
 enum GameStatus { playing, paused, won }
 
+// Game mode
+enum GameMode { colorPuzzle, imagePuzzle }
+
 // Multiplayer
 enum RoomStatus { waiting, countdown, playing, finished }
 

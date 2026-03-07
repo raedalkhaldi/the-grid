@@ -7,6 +7,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:chromashift/core/constants.dart';
 import 'package:chromashift/features/multiplayer/multiplayer_provider.dart';
 import 'package:chromashift/features/multiplayer/multiplayer_game_screen.dart';
+import 'package:chromashift/features/multiplayer/multiplayer_image_puzzle_screen.dart';
 import 'package:chromashift/models/room_model.dart';
 
 class WaitingRoomScreen extends ConsumerStatefulWidget {
@@ -61,11 +62,22 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) => MultiplayerGameScreen(
-          level: room.level,
-          seed: room.seed,
-        ),
+        builder: (_) => _buildGameScreen(room),
       ),
+    );
+  }
+
+  Widget _buildGameScreen(RoomModel room) {
+    if (room.gameMode == GameMode.imagePuzzle) {
+      return MultiplayerImagePuzzleScreen(
+        gridSize: room.gridSize,
+        seed: room.seed,
+        imageData: room.imageData,
+      );
+    }
+    return MultiplayerGameScreen(
+      level: room.level,
+      seed: room.seed,
     );
   }
 
@@ -91,10 +103,7 @@ class _WaitingRoomScreenState extends ConsumerState<WaitingRoomScreen> {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (_) => MultiplayerGameScreen(
-                level: room.level,
-                seed: room.seed,
-              ),
+              builder: (_) => _buildGameScreen(room),
             ),
           );
         }

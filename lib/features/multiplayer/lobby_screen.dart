@@ -1,6 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:chromashift/core/constants.dart';
 import 'package:chromashift/features/game/game_provider.dart';
 import 'package:chromashift/features/multiplayer/multiplayer_provider.dart';
 import 'package:chromashift/features/multiplayer/waiting_room_screen.dart';
@@ -15,6 +19,9 @@ class LobbyScreen extends ConsumerStatefulWidget {
 class _LobbyScreenState extends ConsumerState<LobbyScreen> {
   final _codeController = TextEditingController();
   int _selectedLevel = 1;
+  int _selectedGridSize = 3;
+  GameMode _gameMode = GameMode.colorPuzzle;
+  Uint8List? _imageBytes;
   bool _isCreating = false;
   bool _isJoining = false;
 
@@ -31,9 +38,42 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
     super.dispose();
   }
 
+  Future<void> _pickImage(ImageSource source) async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: source,
+      maxWidth: 500,
+      maxHeight: 500,
+      imageQuality: 70,
+    );
+
+    if (picked == null) return;
+
+    final bytes = await picked.readAsBytes();
+    setState(() => _imageBytes = bytes);
+  }
+
   Future<void> _createRoom() async {
+    if (_gameMode == GameMode.imagePuzzle && _imageBytes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pick an image first')),
+      );
+      return;
+    }
+
     setState(() => _isCreating = true);
-    await ref.read(multiplayerProvider.notifier).createRoom(_selectedLevel);
+
+    String? imageData;
+    if (_gameMode == GameMode.imagePuzzle && _imageBytes != null) {
+      imageData = base64Encode(_imageBytes!);
+    }
+
+    await ref.read(multiplayerProvider.notifier).createRoom(
+          _selectedLevel,
+          gameMode: _gameMode,
+          imageData: imageData,
+          gridSize: _selectedGridSize,
+        );
     if (!mounted) return;
 
     final mp = ref.read(multiplayerProvider);
@@ -80,6 +120,8 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isImageMode = _gameMode == GameMode.imagePuzzle;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Multiplayer'),
@@ -87,52 +129,169 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
         elevation: 0,
       ),
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 32),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
 
-              // Level selector
+              // Game mode toggle
               Text(
-                'Select Level',
+                'Game Mode',
                 style: TextStyle(
                   fontSize: 16,
                   color: Colors.white.withAlpha(180),
                 ),
               ),
               const SizedBox(height: 12),
-              SizedBox(
-                height: 48,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: 10,
-                  itemBuilder: (_, i) {
-                    final level = i + 1;
-                    final gridSize = (level + 1) * 2;
-                    final selected = level == _selectedLevel;
+              Row(
+                children: [
+                  Expanded(
+                    child: _ModeButton(
+                      icon: Icons.grid_view_rounded,
+                      label: 'Colors',
+                      selected: !isImageMode,
+                      color: const Color(0xFF4ECDC4),
+                      onTap: () =>
+                          setState(() => _gameMode = GameMode.colorPuzzle),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _ModeButton(
+                      icon: Icons.image_rounded,
+                      label: 'Image',
+                      selected: isImageMode,
+                      color: const Color(0xFFFF6B6B),
+                      onTap: () =>
+                          setState(() => _gameMode = GameMode.imagePuzzle),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 24),
+
+              // Mode-specific options
+              if (isImageMode) ...[
+                // Grid size selector
+                Text(
+                  'Grid Size',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.white.withAlpha(180),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [3, 4, 5].map((size) {
+                    final selected = size == _selectedGridSize;
                     return Padding(
-                      padding: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.only(right: 10),
                       child: ChoiceChip(
-                        label: Text('$level (${gridSize}x$gridSize)'),
+                        label: Text('${size}x$size'),
                         selected: selected,
                         onSelected: (_) =>
-                            setState(() => _selectedLevel = level),
-                        selectedColor: const Color(0xFF4ECDC4),
+                            setState(() => _selectedGridSize = size),
+                        selectedColor: const Color(0xFFFF6B6B),
                         backgroundColor: Colors.white.withAlpha(15),
                         labelStyle: TextStyle(
-                          color: selected ? Colors.black : Colors.white70,
-                          fontWeight:
-                              selected ? FontWeight.bold : FontWeight.normal,
+                          color: selected ? Colors.white : Colors.white70,
+                          fontWeight: selected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                         ),
                       ),
                     );
-                  },
+                  }).toList(),
                 ),
-              ),
 
-              const SizedBox(height: 32),
+                const SizedBox(height: 20),
+
+                // Image picker
+                if (_imageBytes != null)
+                  Column(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.memory(
+                          _imageBytes!,
+                          height: 150,
+                          width: 150,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextButton.icon(
+                        onPressed: () => _pickImage(ImageSource.gallery),
+                        icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+                        label: const Text('Change'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white54,
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _PickerChip(
+                        icon: Icons.photo_library_rounded,
+                        label: 'Gallery',
+                        onTap: () => _pickImage(ImageSource.gallery),
+                      ),
+                      const SizedBox(width: 16),
+                      _PickerChip(
+                        icon: Icons.camera_alt_rounded,
+                        label: 'Camera',
+                        onTap: () => _pickImage(ImageSource.camera),
+                      ),
+                    ],
+                  ),
+              ] else ...[
+                // Level selector (color puzzle)
+                Text(
+                  'Select Level',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.white.withAlpha(180),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 48,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: 10,
+                    itemBuilder: (_, i) {
+                      final level = i + 1;
+                      final gridSize = (level + 1) * 2;
+                      final selected = level == _selectedLevel;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text('$level (${gridSize}x$gridSize)'),
+                          selected: selected,
+                          onSelected: (_) =>
+                              setState(() => _selectedLevel = level),
+                          selectedColor: const Color(0xFF4ECDC4),
+                          backgroundColor: Colors.white.withAlpha(15),
+                          labelStyle: TextStyle(
+                            color: selected ? Colors.black : Colors.white70,
+                            fontWeight: selected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 24),
 
               // Create room button
               SizedBox(
@@ -151,13 +310,15 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                     style: const TextStyle(fontSize: 18),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4ECDC4),
-                    foregroundColor: Colors.black,
+                    backgroundColor: isImageMode
+                        ? const Color(0xFFFF6B6B)
+                        : const Color(0xFF4ECDC4),
+                    foregroundColor: isImageMode ? Colors.white : Colors.black,
                   ),
                 ),
               ),
 
-              const SizedBox(height: 32),
+              const SizedBox(height: 28),
 
               // Divider
               Row(
@@ -181,7 +342,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                 ],
               ),
 
-              const SizedBox(height: 32),
+              const SizedBox(height: 28),
 
               // Join room
               Text(
@@ -253,8 +414,100 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                   ),
                 ),
               ),
+
+              const SizedBox(height: 32),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ModeButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ModeButton({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 56,
+        decoration: BoxDecoration(
+          color: selected ? color.withAlpha(30) : Colors.white.withAlpha(8),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected ? color.withAlpha(150) : Colors.white.withAlpha(20),
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: selected ? color : Colors.white54, size: 22),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                color: selected ? color : Colors.white54,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PickerChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _PickerChip({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white.withAlpha(10),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withAlpha(30)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: const Color(0xFFFF6B6B), size: 22),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.white.withAlpha(150),
+              ),
+            ),
+          ],
         ),
       ),
     );
