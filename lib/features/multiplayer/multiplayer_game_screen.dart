@@ -118,7 +118,6 @@ class _MultiplayerGameScreenState extends ConsumerState<MultiplayerGameScreen>
   Widget build(BuildContext context) {
     final game = ref.watch(gameProvider);
     final mp = ref.watch(multiplayerProvider);
-    final playersAsync = ref.watch(playersStreamProvider);
     final gridSize = game.grid.gridSize;
 
     // Listen for game win → sync immediately
@@ -184,20 +183,25 @@ class _MultiplayerGameScreenState extends ConsumerState<MultiplayerGameScreen>
                     ),
                   ),
 
-                  // Live leaderboard
-                  playersAsync.when(
-                    data: (players) => _LiveLeaderboard(
-                      players: players,
-                      myUid: mp.myUid ?? '',
-                    ),
-                    loading: () => const _LiveLeaderboard(
-                      players: [],
-                      myUid: '',
-                    ),
-                    error: (_, __) => const _LiveLeaderboard(
-                      players: [],
-                      myUid: '',
-                    ),
+                  // Live leaderboard (isolated Consumer to avoid grid rebuilds)
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final playersAsync = ref.watch(playersStreamProvider);
+                      return playersAsync.when(
+                        data: (players) => _LiveLeaderboard(
+                          players: players,
+                          myUid: mp.myUid ?? '',
+                        ),
+                        loading: () => const _LiveLeaderboard(
+                          players: [],
+                          myUid: '',
+                        ),
+                        error: (_, __) => const _LiveLeaderboard(
+                          players: [],
+                          myUid: '',
+                        ),
+                      );
+                    },
                   ),
 
                   // HUD
@@ -369,21 +373,6 @@ class _LiveLeaderboard extends StatelessWidget {
                       ),
                     ),
                   const SizedBox(width: 8),
-                  // Moves
-                  Icon(Icons.swipe_rounded,
-                      size: 12, color: Colors.white.withAlpha(60)),
-                  const SizedBox(width: 3),
-                  SizedBox(
-                    width: 28,
-                    child: Text(
-                      '${player.moveCount}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.white.withAlpha(140),
-                      ),
-                    ),
-                  ),
-                  // Time
                   Icon(Icons.timer_rounded,
                       size: 12, color: Colors.white.withAlpha(60)),
                   const SizedBox(width: 3),

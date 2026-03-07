@@ -150,7 +150,6 @@ class _MultiplayerImagePuzzleScreenState
   Widget build(BuildContext context) {
     final puzzle = ref.watch(imagePuzzleProvider);
     final mp = ref.watch(multiplayerProvider);
-    final playersAsync = ref.watch(playersStreamProvider);
 
     // Listen for puzzle win → sync immediately
     ref.listen(imagePuzzleProvider, (prev, next) {
@@ -258,20 +257,25 @@ class _MultiplayerImagePuzzleScreenState
                     ),
                   ),
 
-                  // Live leaderboard
-                  playersAsync.when(
-                    data: (players) => _CompactLeaderboard(
-                      players: players,
-                      myUid: mp.myUid ?? '',
-                    ),
-                    loading: () => const _CompactLeaderboard(
-                      players: [],
-                      myUid: '',
-                    ),
-                    error: (_, __) => const _CompactLeaderboard(
-                      players: [],
-                      myUid: '',
-                    ),
+                  // Live leaderboard (isolated Consumer to avoid grid rebuilds)
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final playersAsync = ref.watch(playersStreamProvider);
+                      return playersAsync.when(
+                        data: (players) => _CompactLeaderboard(
+                          players: players,
+                          myUid: mp.myUid ?? '',
+                        ),
+                        loading: () => const _CompactLeaderboard(
+                          players: [],
+                          myUid: '',
+                        ),
+                        error: (_, __) => const _CompactLeaderboard(
+                          players: [],
+                          myUid: '',
+                        ),
+                      );
+                    },
                   ),
 
                   // HUD
@@ -492,19 +496,6 @@ class _CompactLeaderboard extends StatelessWidget {
                       ),
                     ),
                   const SizedBox(width: 8),
-                  Icon(Icons.swipe_rounded,
-                      size: 12, color: Colors.white.withAlpha(60)),
-                  const SizedBox(width: 3),
-                  SizedBox(
-                    width: 28,
-                    child: Text(
-                      '${player.moveCount}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.white.withAlpha(140),
-                      ),
-                    ),
-                  ),
                   Icon(Icons.timer_rounded,
                       size: 12, color: Colors.white.withAlpha(60)),
                   const SizedBox(width: 3),
