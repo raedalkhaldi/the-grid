@@ -1,7 +1,7 @@
 name: chromashift
 description: "ChromaShift - A color-sorting puzzle game"
 publish_to: 'none'
-version: 1.0.0+3
+version: 1.0.0+4
 
 environment:
   sdk: ^3.7.0
@@ -21,6 +21,7 @@ dependencies:
   firebase_core: ^3.8.0
   firebase_auth: ^5.3.4
   cloud_firestore: ^5.6.0
+  image_picker: ^1.1.2
 
 dev_dependencies:
   flutter_test:
