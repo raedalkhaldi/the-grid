@@ -28,6 +28,9 @@ class FirebaseService {
     return List.generate(6, (_) => chars[random.nextInt(chars.length)]).join();
   }
 
+  /// Max base64 image size: ~200KB (well within Firestore 1MB doc limit)
+  static const int _maxImageDataLength = 200 * 1024;
+
   Future<String> createRoom(
     int level,
     int seed, {
@@ -36,6 +39,20 @@ class FirebaseService {
     String? imageData,
     int gridSize = 3,
   }) async {
+    // --- Input validation ---
+    if (level < 1 || level > 20) {
+      throw ArgumentError('Level must be between 1 and 20');
+    }
+    if (maxPlayers < 2 || maxPlayers > 10) {
+      throw ArgumentError('Max players must be between 2 and 10');
+    }
+    if (gridSize < 3 || gridSize > 6) {
+      throw ArgumentError('Grid size must be between 3 and 6');
+    }
+    if (imageData != null && imageData.length > _maxImageDataLength) {
+      throw ArgumentError('Image data exceeds maximum size');
+    }
+
     final uid = currentUid!;
     String roomCode;
 
@@ -72,6 +89,10 @@ class FirebaseService {
   }
 
   Future<RoomModel?> joinRoom(String roomCode) async {
+    // Validate room code format (6 alphanumeric chars)
+    if (roomCode.isEmpty || roomCode.length != 6) return null;
+    if (!RegExp(r'^[A-Z0-9]{6}$').hasMatch(roomCode)) return null;
+
     final uid = currentUid!;
     final docRef = _firestore.collection('rooms').doc(roomCode);
 
@@ -105,7 +126,10 @@ class FirebaseService {
     });
   }
 
+  static const _validStatuses = {'waiting', 'countdown', 'playing', 'finished'};
+
   Future<void> setRoomStatus(String roomCode, String status) async {
+    if (!_validStatuses.contains(status)) return;
     await _firestore.collection('rooms').doc(roomCode).update({
       'status': status,
     });
@@ -118,6 +142,13 @@ class FirebaseService {
     int? elapsedMs,
     bool? solved,
   }) async {
+    // Validate: only update your own state
+    if (uid != currentUid) return;
+
+    // Validate ranges
+    if (moveCount != null && (moveCount < 0 || moveCount > 99999)) return;
+    if (elapsedMs != null && (elapsedMs < 0 || elapsedMs > 3600000)) return;
+
     final updates = <String, dynamic>{};
     if (moveCount != null) updates['players.$uid.moveCount'] = moveCount;
     if (elapsedMs != null) updates['players.$uid.elapsedMs'] = elapsedMs;
